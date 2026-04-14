@@ -10,11 +10,6 @@
 
     <ItemGroup>
         <PackageReference Include="ModSharp.Sharp.Shared" Version="*" PrivateAssets="all"/>
-        <PackageReference Include="ValvePak" Version="4.0.0.142" />
-    </ItemGroup>
-    <ItemGroup>
-        <ProjectReference Include="..\external\SteamApi.Net\SteamApi.csproj" />
-        <ProjectReference Include="external/SteamApi.Net/SteamApi.csproj" />
     </ItemGroup>
 </Project>
 

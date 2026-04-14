@@ -2,12 +2,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ParticleTest", "ParticleTest\ParticleTest.csproj", "{C5D362A8-AF96-4CF0-B168-AE2B9F56D47E}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "external", "external", "{A288BEE0-695A-BEEA-455C-649571D89326}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SteamApi.Net", "SteamApi.Net", "{E07B76CC-035A-87CB-8928-AB385113E73D}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SteamApi", "external\SteamApi.Net\SteamApi.csproj", "{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,24 +24,10 @@ Global
 		{C5D362A8-AF96-4CF0-B168-AE2B9F56D47E}.Release|x64.Build.0 = Release|Any CPU
 		{C5D362A8-AF96-4CF0-B168-AE2B9F56D47E}.Release|x86.ActiveCfg = Release|Any CPU
 		{C5D362A8-AF96-4CF0-B168-AE2B9F56D47E}.Release|x86.Build.0 = Release|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Debug|x64.Build.0 = Debug|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Debug|x86.Build.0 = Debug|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Release|Any CPU.Build.0 = Release|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Release|x64.ActiveCfg = Release|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Release|x64.Build.0 = Release|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Release|x86.ActiveCfg = Release|Any CPU
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{E07B76CC-035A-87CB-8928-AB385113E73D} = {A288BEE0-695A-BEEA-455C-649571D89326}
-		{1A1682D7-BEB1-4679-9A3F-001D07EF89E5} = {E07B76CC-035A-87CB-8928-AB385113E73D}
 	EndGlobalSection
 EndGlobal
