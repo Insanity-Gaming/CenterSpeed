@@ -1,6 +1,7 @@
 using Sharp.Shared;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Sharp.Modules.ClientPreferences.Shared;
 using Sharp.Shared.Enums;
 using Sharp.Shared.GameEntities;
 using Sharp.Shared.HookParams;
@@ -8,7 +9,6 @@ using Sharp.Shared.Listeners;
 using Sharp.Shared.Managers;
 using Sharp.Shared.Objects;
 using Sharp.Shared.Types;
-using Sharp.Shared.Units;
 
 namespace ParticleTest;
 
@@ -31,6 +31,9 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
     private readonly IModSharp             _modSharp;
     private readonly IEntityManager _entityManager;
     private readonly IHookManager _hookManager;
+    private readonly ISharpModuleManager _modules;
+    private IModSharpModuleInterface<IClientPreference>? _cachedInterface;
+    private IDisposable? _callback;
 
     // --- Per-player HUD state ---
     private readonly PlayerHudState?[] _huds = new PlayerHudState?[64];
@@ -84,6 +87,7 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
         _logger          = sharedSystem.GetLoggerFactory().CreateLogger<ParticleTest>();
         _transmitManager = sharedSystem.GetTransmitManager();
         _hookManager     = sharedSystem.GetHookManager();
+        _modules         = sharedSystem.GetSharpModuleManager();
         _sharpPath       = sharpPath;
     }
 
@@ -96,7 +100,6 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
         _particleConVar = convarManager.CreateConVar("ms_cspeed_particle", "particles/digits_x/digits_x.vpcf");
         _yOffsetConVar = convarManager.CreateConVar("ms_cspeed_y_offset", 0.0f);
         
-        // _clientManager.InstallCommandCallback("ptest", OnParticleTestCommand);
         _clientManager.InstallCommandCallback("hudsettings", OnHudSettingsCommand);
 
         _logger.LogInformation("ParticleTest loaded");
@@ -116,6 +119,7 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
         
         _hookManager.PlayerRunCommand.RemoveHookPost(PlayerRunCommandPost);
         _hookManager.PlayerSpawnPost.RemoveForward(OnPlayerSpawned);
+        _callback?.Dispose();
 
         for (var i = 0; i < 64; i++)
             KillPlayerHud(i);
@@ -384,6 +388,7 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
             var i  = index1 - 1;
 
             settings.DigitOffsets[i] = value;
+            SaveSettings(client.SteamId, settings);
             SpawnPlayerHud(client);
             client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Digit {index1} offset set to {value:F2}");
         }
@@ -399,6 +404,7 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
 
             value = Math.Clamp(value, 0f, 10f);
             settings.HudScale = value;
+            SaveSettings(client.SteamId, settings);
             SpawnPlayerHud(client);
             client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Scale set to {value:F2}");
         }
@@ -414,12 +420,14 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
 
             offset = Math.Clamp(offset, -10f, 10f);
             settings.YOffset = offset;
+            SaveSettings(client.SteamId, settings);
             SpawnPlayerHud(client);
             client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Y-Offset set to {offset:F2}");
         }
         else if (sub == "toggle")
         {
             settings.Enabled = !settings.Enabled;
+            SaveSettings(client.SteamId, settings);
             SpawnPlayerHud(client);
             client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Enabled set to {settings.Enabled}");
         }
@@ -436,6 +444,85 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
         client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Offsets: 1={o[0]:F2}  2={o[1]:F2}  3={o[2]:F2}  4={o[3]:F2}");
         client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Scale: {settings.HudScale:F4}");
         client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Y-Offset: {settings.YOffset:F4}");
+    }
+
+    // -------------------------------------------------------------------------
+    // ClientPrefs integration
+
+    public void OnAllModulesLoaded()
+    {
+        _cachedInterface = _modules.GetOptionalSharpModuleInterface<IClientPreference>(IClientPreference.Identity);
+        if (_cachedInterface?.Instance is { } instance)
+            _callback = instance.ListenOnLoad(OnCookieLoad);
+    }
+
+    public void OnLibraryConnected(string name)
+    {
+        if (!name.Equals("ClientPreferences")) return;
+        _cachedInterface = _modules.GetRequiredSharpModuleInterface<IClientPreference>(IClientPreference.Identity);
+        if (_cachedInterface?.Instance is { } instance)
+            _callback = instance.ListenOnLoad(OnCookieLoad);
+    }
+
+    public void OnLibraryDisconnect(string name)
+    {
+        if (!name.Equals("ClientPreferences")) return;
+        _cachedInterface = null;
+    }
+
+    private IClientPreference? GetInterface()
+    {
+        if (_cachedInterface?.Instance is null)
+        {
+            _cachedInterface = _modules.GetOptionalSharpModuleInterface<IClientPreference>(IClientPreference.Identity);
+            if (_cachedInterface?.Instance is { } instance)
+                _callback = instance.ListenOnLoad(OnCookieLoad);
+        }
+        return _cachedInterface?.Instance;
+    }
+
+    private void OnCookieLoad(IGameClient client)
+    {
+        if (GetInterface() is not { } cp) return;
+
+        var settings = _playerSettings[client.Slot] ??= new PlayerHudSettings();
+        var id = client.SteamId;
+
+        for (var i = 0; i < 4; i++)
+        {
+            if (cp.GetCookie(id, $"hud_d{i}") is { } c &&
+                float.TryParse(c.GetString(), System.Globalization.NumberStyles.Float,
+                    System.Globalization.CultureInfo.InvariantCulture, out var v))
+                settings.DigitOffsets[i] = v;
+        }
+
+        if (cp.GetCookie(id, "hud_scale") is { } sc &&
+            float.TryParse(sc.GetString(), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var scale))
+            settings.HudScale = scale;
+
+        if (cp.GetCookie(id, "hud_yoffset") is { } yo &&
+            float.TryParse(yo.GetString(), System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture, out var yoffset))
+            settings.YOffset = yoffset;
+
+        if (cp.GetCookie(id, "hud_enabled") is { } en)
+            settings.Enabled = en.GetString() != "0";
+    }
+
+    private void SaveSettings(ulong steamId, PlayerHudSettings s)
+    {
+        if (GetInterface() is not { } cp) return;
+
+        for (var i = 0; i < 4; i++)
+            cp.SetCookie(steamId, $"hud_d{i}",
+                s.DigitOffsets[i].ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
+
+        cp.SetCookie(steamId, "hud_scale",
+            s.HudScale.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
+        cp.SetCookie(steamId, "hud_yoffset",
+            s.YOffset.ToString("F4", System.Globalization.CultureInfo.InvariantCulture));
+        cp.SetCookie(steamId, "hud_enabled", s.Enabled ? "1" : "0");
     }
 
     // -------------------------------------------------------------------------
