@@ -68,6 +68,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private class PlayerHudState
     {
         // Index 0 = thousands, 1 = hundreds, 2 = tens, 3 = ones
+        public bool IsDisposed = false;
         public IBaseParticle?[] Digits { get; } = new IBaseParticle?[4];
     }
 
@@ -256,17 +257,31 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     {
         var state = _huds[slot];
         if (state == null) return;
+        state.IsDisposed = true;
 
         foreach (var particle in state.Digits)
         {
-            if (particle is null || !particle.IsValid()) continue;
-            _transmitManager.RemoveEntityHooks(particle);
-            SetControlPointValue(particle, 34, new Vector(0f, 0f,   0f)); // scale
+            if (particle is null || !particle.IsValid())
+                continue;
+            
+            var assignments   = particle.GetServerControlPointAssignments();
+            var controlPoints = particle.GetServerControlPoints();
+            for (var i = 0; i < 4; i++)
+            {
+                assignments[i]   = 255;
+                controlPoints[i] = new Vector(0f, 0f, 0f);
+            }
             particle.GetControlPointEntities()[17] = particle.GetControlPointEntities()[16];
-            particle?.Kill();
-            particle?.AcceptInput("Stop");
-            particle?.AcceptInput("Kill");
-            particle?.AcceptInput("DestroyImmediately");
+
+            _modSharp.InvokeFrameAction(() =>
+            {
+                particle.AcceptInput("StopPlayEndCap");
+                particle.AcceptInput("Stop");
+                particle.AcceptInput("KillHierarchy");
+                particle.AcceptInput("Kill");
+                particle.AcceptInput("DestroyImmediately");
+                particle.Kill();
+            });
         }
 
         _huds[slot] = null;
@@ -289,7 +304,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             return;
         }
         
-        if (state == null) return;
+        if (state == null || state.IsDisposed) return;
 
         var controller = client.GetPlayerController();
         if (controller == null || controller.ConnectedState != PlayerConnectedState.PlayerConnected)
@@ -317,7 +332,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         for (var i = 0; i < 4; i++)
         {
             var particle = state.Digits[i];
-            if (particle == null)
+            if (particle == null || state.IsDisposed)
             {
                 continue;
             }
@@ -349,7 +364,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             if (particle == null) continue;
         
             foreach(var con in _entityManager.GetPlayerControllers(true).Where(con => !con.IsFakeClient))
-                _transmitManager.SetEntityState(particle.Index, con.Index, con.PlayerSlot == client.Slot, -1);
+                _transmitManager.SetEntityState(particle.Index, con.Index, con.PlayerSlot == client.Slot && !state.IsDisposed, -1);
         }
     }
 
