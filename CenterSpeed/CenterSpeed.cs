@@ -41,7 +41,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private float[] _lastSpeed = new float[64];
     private IBaseEntity?               _sharedTarget;
     private IConVar? _particleConVar;
-    private IConVar? _yOffsetConVar;
     
     private Dictionary<int, int> _digitMap = new()
     {
@@ -98,7 +97,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
 
         var convarManager = _sharedSystem.GetConVarManager();
         _particleConVar = convarManager.CreateConVar("ms_cspeed_particle", "particles/digits_x/digits_x.vpcf");
-        _yOffsetConVar = convarManager.CreateConVar("ms_cspeed_y_offset", 0.0f);
         
         _clientManager.InstallCommandCallback("hudsettings", OnHudSettingsCommand);
 
@@ -213,7 +211,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         if (!settings.Enabled) return;
 
         var particleName = _particleConVar?.GetString() ?? "particles/numbers/number_x.vpcf";
-        var yOffset = _yOffsetConVar?.GetFloat() ?? -3.0f;
         
 
         for (var i = 0; i < 4; i++)
