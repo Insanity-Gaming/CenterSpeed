@@ -105,9 +105,15 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         _hookManager.PlayerRunCommand.InstallHookPost(PlayerRunCommandPost);
         _hookManager.PlayerSpawnPost.InstallForward(OnPlayerSpawned);
         _hookManager.PlayerKilledPost.InstallForward(OnPlayerKilled);
+        _hookManager.HandleCommandJoinTeam.InstallHookPost(OnPlayerTeamChanged);
         
         OnResourcePrecache();
         return true;
+    }
+
+    private void OnPlayerTeamChanged(IHandleCommandJoinTeamHookParams param, HookReturnValue<bool> ret)
+    {
+        KillPlayerHud(param.Client.Slot);
     }
 
     public void Shutdown()
