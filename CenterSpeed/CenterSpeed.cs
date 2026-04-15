@@ -108,7 +108,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         _hookManager.PlayerKilledPost.InstallForward(OnPlayerKilled);
         _hookManager.HandleCommandJoinTeam.InstallHookPost(OnPlayerTeamChanged);
 
-        OnResourcePrecache();
         return true;
     }
 
@@ -531,6 +530,8 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
 
         if (cp.GetCookie(id, "hud_enabled") is { } en)
             settings.Enabled = en.GetString() != "0";
+        
+        SpawnPlayerHud(client);
     }
 
     private void SaveSettings(ulong steamId, PlayerHudSettings s)
