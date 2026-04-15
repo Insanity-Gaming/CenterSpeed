@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>CenterSpeed</AssemblyName>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="ModSharp.Sharp.Modules.ClientPreferences.Shared" Version="2.1.118" />
+        <PackageReference Include="ModSharp.Sharp.Shared" Version="*" PrivateAssets="all"/>
+    </ItemGroup>
+</Project>
+
