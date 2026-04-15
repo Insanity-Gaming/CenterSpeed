@@ -62,7 +62,6 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
     {
         // Index 0 = thousands, 1 = hundreds, 2 = tens, 3 = ones
         public IBaseParticle?[] Digits { get; } = new IBaseParticle?[4];
-        public IBaseEntity?[] InfoTarget { get; set; }  = new IBaseEntity?[4];
     }
 
     public ParticleTest(
@@ -160,10 +159,8 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
 
     private void SpawnPlayerHud(IGameClient client)
     {
-        _logger.LogInformation("Spawning player hud");
         if (!client.IsValid || client.IsFakeClient)
             return;
-        _logger.LogInformation("Spawning player hud 2");
 
         var slot = (byte) client.Slot;
 
@@ -172,20 +169,30 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
             _logger.LogWarning("SpawnPlayerHud: slot {Slot} out of range", slot);
             return;
         }
-        
-        _logger.LogInformation("Spawning player hud 3");
 
         KillPlayerHud(slot); // clear any stale state
         
-        _logger.LogInformation("Spawning player hud 4");
+
+        if (_sharedTarget is null || !_sharedTarget.IsValid())
+        {
+            var targetKv = new Dictionary<string, KeyValuesVariantValueItem>
+            {
+                ["origin"] = "0.0 1.0 0.5"
+            };
+            var target = _sharedSystem.GetEntityManager()
+                .SpawnEntitySync<IBaseEntity>("info_target", targetKv);
+
+            if (target == null)
+            {
+                _logger.LogWarning("SpawnPlayerHud(target): failed to create shared target");
+                return;
+            }
+            _sharedTarget = target;
+        }
+        
 
         // Lazy-init the one shared info_target (never modified after creation).
         _logger.LogInformation("Shared target spawn");
-        var targetKv = new Dictionary<string, KeyValuesVariantValueItem>
-        {
-            ["origin"] = "0.0 1.0 0.5"
-        };
-        
 
         _logger.LogInformation("Spawning player hud 5");
         
@@ -213,17 +220,8 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
                 _logger.LogWarning("SpawnPlayerHud: failed to spawn digit {Index} for slot {Slot}", i, slot);
                 continue;
             }
-            var target = _sharedSystem.GetEntityManager()
-                .SpawnEntitySync<IBaseEntity>("info_target", targetKv);
-
-            if (target == null)
-            {
-                _logger.LogWarning("SpawnPlayerHud(target): failed to spawn digit {Index} for slot {Slot}", i, slot);
-                continue;
-            }
             
-
-            particle.GetControlPointEntities()[17] = target.Handle;
+            particle.GetControlPointEntities()[17] = _sharedTarget.Handle;
 
             particle.DataControlPoint      = 33;
             particle.DataControlPointValue = new Vector(DigitOffsets[i], yOffset, 0f);
@@ -236,7 +234,6 @@ public class ParticleTest : IModSharpModule, IGameListener, IClientListener
             particle.Active = true;
 
             state.Digits[i] = particle;
-            state.InfoTarget[i] = target;
             _transmitManager.AddEntityHooks(particle, true);
         }
 
