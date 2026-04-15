@@ -262,6 +262,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             if (particle is null || !particle.IsValid()) continue;
             _transmitManager.RemoveEntityHooks(particle);
             SetControlPointValue(particle, 34, new Vector(0f, 0f,   0f)); // scale
+            particle.GetControlPointEntities()[17] = particle.GetControlPointEntities()[16];
             particle?.Kill();
             particle?.AcceptInput("Stop");
             particle?.AcceptInput("Kill");
