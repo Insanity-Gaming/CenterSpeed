@@ -47,7 +47,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private readonly PlayerHudSettings?[] _playerSettings = new PlayerHudSettings?[64];
     private readonly float[] _lastSpeed = new float[64];
     private IConVar? _particleConVar;
-    private IBaseEntity? _sharedTarget;
 
     private readonly Dictionary<int, int> _digitMap = new()
     {
@@ -75,6 +74,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     {
         // Index 0 = thousands, 1 = hundreds, 2 = tens, 3 = ones
         public IBaseParticle?[] Digits { get; } = new IBaseParticle?[4];
+        public IBaseEntity? Target { get; set; } = null;
     }
 
     public CenterSpeed(
@@ -110,7 +110,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         var convarManager = _sharedSystem.GetConVarManager();
         _particleConVar = convarManager.CreateConVar("ms_cspeed_particle", "particles/digits_x/digits_x.vpcf");
 
-        _clientManager.InstallCommandCallback("hudsettings", OnHudSettingsCommand);
+        _clientManager.InstallCommandCallback("hud", OnHudSettingsCommand);
 
         _logger.LogInformation("CenterSpeed loaded");
 
@@ -171,27 +171,28 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private void OnRoundEnd(IGameEvent e)
     {
         _logger.LogInformation("CenterSpeed OnRoundEnd — invalidating HUD state");
-        _sharedTarget = null;
         for (var i = 0; i < 64; i++)
             _huds[i] = null;
-    }
-
-    private bool EnsureSharedTarget()
-    {
-        if (_sharedTarget != null) return true;
-        var kv = new Dictionary<string, KeyValuesVariantValueItem> { ["origin"] = "0.0 1.0 0.5" };
-        _sharedTarget = _entityManager.SpawnEntitySync<IBaseEntity>("info_target", kv);
-        if (_sharedTarget == null)
-            _logger.LogWarning("EnsureSharedTarget: failed to spawn info_target");
-        return _sharedTarget != null;
     }
 
     private void EnsureHudForSlot(int slot)
     {
         if (_huds[slot] != null) return;
-        if (!EnsureSharedTarget()) return;
+        var controller = _entityManager.FindPlayerControllerBySlot((PlayerSlot) slot);
+        if (controller is null || controller.IsFakeClient) return;
 
         var state = new PlayerHudState();
+        
+        var targetkv = new Dictionary<string, KeyValuesVariantValueItem> { ["origin"] = "0.0 1.0 0.5" };
+        var target = _entityManager.SpawnEntitySync<IBaseEntity>("info_target", targetkv);
+        if (target is null || !target.IsValid())
+        {
+            _logger.LogWarning("Failed to create target");
+            return;
+        }
+        state.Target = target;
+        _transmitManager.AddEntityHooks(target, false);
+        
         var particleName = _particleConVar?.GetString() ?? "particles/digits_x/digits_x.vpcf";
         var defaults = new PlayerHudSettings();
 
@@ -209,7 +210,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
                 continue;
             }
 
-            particle.GetControlPointEntities()[17] = _sharedTarget!.Handle;
+            particle.GetControlPointEntities()[17] = target.Handle;
             particle.DataControlPoint = 33;
             particle.DataControlPointValue = new Vector(defaults.DigitOffsets[i], defaults.YOffset, 0f);
             SetControlPointValue(particle, 32, new Vector(0f, 0f, 0f));
@@ -220,6 +221,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
 
             state.Digits[i] = particle;
             _transmitManager.AddEntityHooks(particle, false);
+            _transmitManager.SetEntityOwner(particle.Index, controller.Index);
         }
 
         _huds[slot] = state;
@@ -228,7 +230,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     public void OnGameDeactivate()
     {
         // Game destroys entities on map end — just drop our references.
-        _sharedTarget = null;
         for (var i = 0; i < 64; i++)
             _huds[i] = null;
     }
@@ -364,6 +365,8 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         foreach (var hud in _huds)
         {
             if(hud == state) continue;
+            if(state.Target is not null)
+                _transmitManager.SetEntityState(state.Target.Index, controller.Index, false, -1);
             for (var i = 0; i < 4; i++)
             {
                 var particle = state.Digits[i];
@@ -372,6 +375,8 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             }
         }
         _logger.LogInformation("Ensure hud is set to correct visibility");
+        if(state.Target is not null)
+            _transmitManager.SetEntityState(state.Target.Index, controller.Index, isVisible, -1);
         for (var i = 0; i < 4; i++)
         {
             var particle = state.Digits[i];
@@ -379,10 +384,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             _logger.LogInformation("Found a non-null particle and valid is {valid} index is {index}", particle.IsValid(), particle.Index);
             particle.SetOwner(controller);
             _transmitManager.SetEntityState(particle.Index, controller.Index, isVisible, -1);
-            if(!isVisible)
-                SetControlPointValue(particle, 34, new Vector(0f, 0f, 0f));
-            else
-                SetControlPointValue(particle, 34, new Vector(settings.HudScale, 0f, 0f));
         }
     }
 
