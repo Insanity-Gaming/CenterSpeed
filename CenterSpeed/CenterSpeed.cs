@@ -99,7 +99,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         var convarManager = _sharedSystem.GetConVarManager();
         _particleConVar = convarManager.CreateConVar("ms_cspeed_particle", "particles/digits_x/digits_x.vpcf");
 
-        _clientManager.InstallCommandCallback("hudsettings", OnHudSettingsCommand);
+        _clientManager.InstallCommandCallback("hud", OnHudSettingsCommand);
 
         _logger.LogInformation("CenterSpeed loaded");
 
@@ -246,6 +246,18 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             particle.Active = true;
 
             state.Digits[i] = particle;
+            _transmitManager.AddEntityHooks(particle, false);
+        }
+
+        // Set visibility: only visible to the owning player
+        foreach (var con in _entityManager.GetPlayerControllers(true))
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                if (state.Digits[i] == null) continue;
+                bool shouldSee = (con.PlayerSlot == slot);
+                _transmitManager.SetEntityState(state.Digits[i].Index, con.Index, shouldSee, -1);
+            }
         }
 
         _huds[slot] = state;
