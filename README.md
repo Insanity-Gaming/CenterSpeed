@@ -25,19 +25,19 @@
 ## Commands
 
 ### Toggle HUD
-!hudsettings toggle
+!hud toggle
 
 ### View Settings
-!hudsettings info
+!hud info
 
 ### Set Digit Offset
-!hudsettings offset <1-4> <-10 to 10>
+!hud offset <1-4> <-10 to 10>
 
 ### Set Scale
-!hudsettings scale <0-10>
+!hud scale <0-10>
 
 ### Set Y Offset
-!hudsettings yoffset <-10 to 10>
+!hud yoffset <-10 to 10>
 
 ---
 
