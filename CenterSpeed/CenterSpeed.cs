@@ -2,6 +2,7 @@ using Sharp.Shared;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Sharp.Modules.ClientPreferences.Shared;
+using Sharp.Modules.MenuManager.Shared;
 using Sharp.Shared.Enums;
 using Sharp.Shared.GameEntities;
 using Sharp.Shared.HookParams;
@@ -9,6 +10,9 @@ using Sharp.Shared.Listeners;
 using Sharp.Shared.Managers;
 using Sharp.Shared.Objects;
 using Sharp.Shared.Types;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace CenterSpeed;
 
@@ -34,6 +38,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private readonly ISharpModuleManager _modules;
     private IModSharpModuleInterface<IClientPreference>? _cachedInterface;
     private IDisposable? _callback;
+    private IMenuManager? _menuManager;
 
     // --- Per-player HUD state ---
     private readonly PlayerHudState?[] _huds = new PlayerHudState?[64];
@@ -41,6 +46,11 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private float[] _lastSpeed = new float[64];
     private IBaseEntity? _sharedTarget;
     private IConVar? _particleConVar;
+
+    // Adjustment increments
+    private const float XOffsetIncrement = 0.1f;
+    private const float YOffsetIncrement = 0.1f;
+    private const float ScaleIncrement = 0.005f;
 
     private Dictionary<int, int> _digitMap = new()
     {
@@ -90,6 +100,10 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         _modules = sharedSystem.GetSharpModuleManager();
         _sharpPath = sharpPath;
     }
+
+    private IMenuManager MenuManager => _menuManager ??= _sharedSystem.GetSharpModuleManager()
+        .GetRequiredSharpModuleInterface<IMenuManager>(IMenuManager.Identity)
+        .Instance!;
 
     public bool Init()
     {
@@ -182,7 +196,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
 
         KillPlayerHud(slot); // clear any stale state
 
-
         if (_sharedTarget is null || !_sharedTarget.IsValid())
         {
             var targetKv = new Dictionary<string, KeyValuesVariantValueItem>
@@ -200,9 +213,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
             _sharedTarget = target;
         }
 
-
-        // Lazy-init the one shared info_target (never modified after creation).
-
         var state = new PlayerHudState();
         var settings = _playerSettings[client.Slot];
         if (settings is null)
@@ -214,7 +224,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         if (!settings.Enabled) return;
 
         var particleName = _particleConVar?.GetString() ?? "particles/numbers/number_x.vpcf";
-
 
         for (var i = 0; i < 4; i++)
         {
@@ -305,7 +314,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
         if (controller == null || controller.ConnectedState != PlayerConnectedState.PlayerConnected)
             return;
 
-
         // Default to 0 so dead/spectating players show "0000".
         var speed = 0;
         var pawn = controller.GetPlayerPawn();
@@ -353,96 +361,167 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     }
 
     // -------------------------------------------------------------------------
-    // !hudsettings command
+    // !hud command - Menu entry point
+    // -------------------------------------------------------------------------
 
     private ECommandAction OnHudSettingsCommand(IGameClient client, StringCommand command)
+    {
+        if (client == null)
+            return ECommandAction.Stopped;
+
+        Task.Delay(150).ContinueWith(_ =>
+        {
+            if (client.IsValid)
+                ShowHudAdjustmentMenu(client);
+        });
+
+        return ECommandAction.Stopped;
+    }
+
+    // -------------------------------------------------------------------------
+    // HUD Adjustment Menu - 6 directional options
+    // -------------------------------------------------------------------------
+
+    private void ShowHudAdjustmentMenu(IGameClient client)
     {
         var slot = client.Slot;
         var settings = _playerSettings[slot] ??= new PlayerHudSettings();
 
-        if (command.ArgCount == 0 || command.GetArg(1).Equals("info", StringComparison.OrdinalIgnoreCase))
-        {
-            PrintHudSettings(client, settings);
-            return ECommandAction.Stopped;
-        }
+        var statusText = settings.Enabled ? "ON" : "OFF";
+        var menu = new Menu();
+        menu.SetTitle($"HUD Settings [{statusText}] - X:{settings.DigitOffsets[0]:F2} Y:{settings.YOffset:F2} Scale:{settings.HudScale:F3}");
 
-        var sub = command.GetArg(1).ToLowerInvariant();
-
-        if (sub == "offset")
-        {
-            if (command.ArgCount < 3 ||
-                !int.TryParse(command.GetArg(2), out var index1) ||
-                !float.TryParse(command.GetArg(3), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var value))
-            {
-                client.GetPlayerController()?.Print(HudPrintChannel.Chat, " [HUD] Usage: !hudsettings offset <1-4> <-10 to 10>");
-                return ECommandAction.Stopped;
-            }
-
-            index1 = Math.Clamp(index1, 1, 4);
-            value = Math.Clamp(value, -10f, 10f);
-            var i = index1 - 1;
-
-            settings.DigitOffsets[i] = value;
-            SaveSettings(client.SteamId, settings);
-            SpawnPlayerHud(client);
-            client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Digit {index1} offset set to {value:F2}");
-        }
-        else if (sub == "scale")
-        {
-            if (command.ArgCount < 2 ||
-                !float.TryParse(command.GetArg(2), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var value))
-            {
-                client.GetPlayerController()?.Print(HudPrintChannel.Chat, " [HUD] Usage: !hudsettings scale <0-10>");
-                return ECommandAction.Stopped;
-            }
-
-            value = Math.Clamp(value, 0f, 10f);
-            settings.HudScale = value;
-            SaveSettings(client.SteamId, settings);
-            SpawnPlayerHud(client);
-            client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Scale set to {value:F2}");
-        }
-        else if (sub == "yoffset")
-        {
-            if (command.ArgCount < 2 ||
-                !float.TryParse(command.GetArg(2), System.Globalization.NumberStyles.Float,
-                    System.Globalization.CultureInfo.InvariantCulture, out var offset))
-            {
-                client.GetPlayerController()?.Print(HudPrintChannel.Chat, " [HUD] Usage: !hudsettings yoffset <-10-10>");
-                return ECommandAction.Stopped;
-            }
-
-            offset = Math.Clamp(offset, -10f, 10f);
-            settings.YOffset = offset;
-            SaveSettings(client.SteamId, settings);
-            SpawnPlayerHud(client);
-            client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Y-Offset set to {offset:F2}");
-        }
-        else if (sub == "toggle")
+        // Toggle - Turn On/Off
+        var toggleLabel = settings.Enabled ? "Turn Off" : "Turn On";
+        menu.AddItem(_ => toggleLabel, controller =>
         {
             settings.Enabled = !settings.Enabled;
             SaveSettings(client.SteamId, settings);
+
             if (settings.Enabled)
                 SpawnPlayerHud(client);
             else
                 KillPlayerHud(client.Slot);
-            client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Enabled set to {settings.Enabled}");
-        }
-        else
+
+            Reply(client, $"HUD is now {(settings.Enabled ? "enabled" : "disabled")}");
+        });
+
+        // Left - Decrease X offset
+        menu.AddItem(_ => "Left (Move Left)", controller =>
         {
-            client.GetPlayerController()?.Print(HudPrintChannel.Chat, " [HUD] Subcommands: offset <1-4> <-10..10> | scale <0-10> | yoffset <-10-10> | info");
-        }
-        return ECommandAction.Stopped;
+            for (var i = 0; i < 4; i++)
+            {
+                settings.DigitOffsets[i] -= XOffsetIncrement;
+                settings.DigitOffsets[i] = Math.Clamp(settings.DigitOffsets[i], -10f, 10f);
+            }
+            SaveSettings(client.SteamId, settings);
+            UpdateHudPositions(client);
+        });
+
+        // Right - Increase X offset
+        menu.AddItem(_ => "Right (Move Right)", controller =>
+        {
+            for (var i = 0; i < 4; i++)
+            {
+                settings.DigitOffsets[i] += XOffsetIncrement;
+                settings.DigitOffsets[i] = Math.Clamp(settings.DigitOffsets[i], -10f, 10f);
+            }
+            SaveSettings(client.SteamId, settings);
+            UpdateHudPositions(client);
+        });
+
+        // Up - Increase Y offset
+        menu.AddItem(_ => "Up (Move Up)", controller =>
+        {
+            settings.YOffset += YOffsetIncrement;
+            settings.YOffset = Math.Clamp(settings.YOffset, -10f, 10f);
+            SaveSettings(client.SteamId, settings);
+            UpdateHudPositions(client);
+        });
+
+        // Down - Decrease Y offset
+        menu.AddItem(_ => "Down (Move Down)", controller =>
+        {
+            settings.YOffset -= YOffsetIncrement;
+            settings.YOffset = Math.Clamp(settings.YOffset, -10f, 10f);
+            SaveSettings(client.SteamId, settings);
+            UpdateHudPositions(client);
+        });
+
+        // Bigger - Increase scale
+        menu.AddItem(_ => "Bigger (Increase Size)", controller =>
+        {
+            settings.HudScale += ScaleIncrement;
+            settings.HudScale = Math.Clamp(settings.HudScale, 0f, 10f);
+            SaveSettings(client.SteamId, settings);
+            UpdateHudPositions(client);
+        });
+
+        // Smaller - Decrease scale
+        menu.AddItem(_ => "Smaller (Decrease Size)", controller =>
+        {
+            settings.HudScale -= ScaleIncrement;
+            settings.HudScale = Math.Clamp(settings.HudScale, 0f, 10f);
+            SaveSettings(client.SteamId, settings);
+            UpdateHudPositions(client);
+        });
+
+        MenuManager.DisplayMenu(client, menu);
     }
+
+    // -------------------------------------------------------------------------
+    // Update HUD positions without full respawn
+    // -------------------------------------------------------------------------
+
+    private void UpdateHudPositions(IGameClient client)
+    {
+        var slot = client.Slot;
+        var state = _huds[slot];
+        var settings = _playerSettings[slot];
+
+        if (state == null || settings == null || state.IsDisposed)
+            return;
+
+        // Update all digit particles with new positions and scale
+        for (var i = 0; i < 4; i++)
+        {
+            var particle = state.Digits[i];
+            if (particle == null || !particle.IsValid())
+                continue;
+
+            // Update position (X and Y offsets) using control point 33
+            SetControlPointValue(particle, 33, new Vector(settings.DigitOffsets[i], settings.YOffset, 0f));
+
+            // Update scale using control point 34
+            SetControlPointValue(particle, 34, new Vector(settings.HudScale, 0f, 0f));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Settings Display
 
     private void PrintHudSettings(IGameClient client, PlayerHudSettings settings)
     {
         var o = settings.DigitOffsets;
-        client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Offsets: 1={o[0]:F2}  2={o[1]:F2}  3={o[2]:F2}  4={o[3]:F2}");
-        client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Scale: {settings.HudScale:F4}");
-        client.GetPlayerController()?.Print(HudPrintChannel.Chat, $" [HUD] Y-Offset: {settings.YOffset:F4}");
+        Reply(client, $"[HUD] Status: {(settings.Enabled ? "Enabled" : "Disabled")}");
+        Reply(client, $"[HUD] Offsets: 1={o[0]:F2}  2={o[1]:F2}  3={o[2]:F2}  4={o[3]:F2}");
+        Reply(client, $"[HUD] Scale: {settings.HudScale:F4}");
+        Reply(client, $"[HUD] Y-Offset: {settings.YOffset:F4}");
+    }
+
+    // -------------------------------------------------------------------------
+    // Utility Methods
+
+    private static void Reply(IGameClient client, string msg)
+    {
+        client.GetPlayerController()?.Print(HudPrintChannel.Chat, msg);
+    }
+
+    private void CloseMenu(IGameClient client)
+    {
+        var emptyMenu = new Menu();
+        emptyMenu.SetTitle(""); // blank menu to close
+        MenuManager.DisplayMenu(client, emptyMenu);
     }
 
     // -------------------------------------------------------------------------
@@ -571,7 +650,6 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
                 : relative;
 
             _modSharp.PrecacheResource(asset);
-
         }
     }
 }

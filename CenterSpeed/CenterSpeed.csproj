@@ -8,9 +8,15 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
-    <ItemGroup>
-        <PackageReference Include="ModSharp.Sharp.Modules.ClientPreferences.Shared" Version="2.1.118" />
-        <PackageReference Include="ModSharp.Sharp.Shared" Version="*" PrivateAssets="all"/>
-    </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ModSharp.Sharp.Shared" Version="*" PrivateAssets="all" />
+    <PackageReference Include="MySqlConnector" Version="2.5.0" />
+    <PackageReference Include="Dapper" Version="2.1.66" />
+		<PackageReference Include="ModSharp.Sharp.Modules.MenuManager.Shared" Version="2.*" PrivateAssets="all" />
+		<PackageReference Include="ModSharp.Sharp.Modules.LocalizerManager.Shared" Version="2.*" PrivateAssets="all" />
+		<PackageReference Include="ModSharp.Sharp.Modules.ClientPreferences.Shared" Version="2.*" PrivateAssets="all" />
+    <PackageReference Include="ModSharp.Sharp.Extensions.CommandManager" Version="2.1.88" />
+		<PackageReference Include="Ptr.Shared" Version="*" PrivateAssets="all" />
+  </ItemGroup>
 </Project>
 
