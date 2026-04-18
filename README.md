@@ -24,20 +24,18 @@
 
 ## Commands
 
-### Toggle HUD
-!hud toggle
+### Toggle HUD menu
+!hud
 
-### View Settings
-!hud info
+###Menu Options
+On/Off
+Up
+Down
+Left
+Right
+Bigger
+Smaller
 
-### Set Digit Offset
-!hud offset <1-4> <-10 to 10>
-
-### Set Scale
-!hud scale <0-10>
-
-### Set Y Offset
-!hud yoffset <-10 to 10>
 
 ---
 
