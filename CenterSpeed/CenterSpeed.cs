@@ -287,7 +287,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
 
     private void PlayerRunCommandPost(IPlayerRunCommandHookParams param, HookReturnValue<EmptyHookReturn> retValue)
     {
-        if (_modSharp.GetGlobals().TickCount % 10 == 0)
+        if (_modSharp.GetGlobals().TickCount % 10 != 0)
             return;
 
         var client = param.Client;
