@@ -593,6 +593,7 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
     private void SaveSettings(ulong steamId, PlayerHudSettings s)
     {
         if (GetInterface() is not { } cp) return;
+        if (!cp.IsLoaded(steamId)) return;
 
         for (var i = 0; i < 4; i++)
             cp.SetCookie(steamId, $"hud_d{i}",
