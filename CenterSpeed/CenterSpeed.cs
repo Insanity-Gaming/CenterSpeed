@@ -371,8 +371,11 @@ public class CenterSpeed : IModSharpModule, IGameListener, IClientListener
 
         Task.Delay(150).ContinueWith(_ =>
         {
-            if (client.IsValid)
-                ShowHudAdjustmentMenu(client);
+            _modSharp.InvokeFrameAction(() =>
+            {
+                if (client.IsValid)
+                    ShowHudAdjustmentMenu(client);
+            });
         });
 
         return ECommandAction.Stopped;
